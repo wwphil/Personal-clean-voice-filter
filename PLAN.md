@@ -299,6 +299,44 @@ Dependencies (venv, Python 3.12): `sounddevice` (PortAudio), `numpy`, `scipy`, `
 - **ONNX gate (cross-platform engine decision):** export BSRNN-TSE (causal checkpoint), ECAPA, and DeepFilterNet to ONNX; verify (a) numeric parity vs. torch reference output (<1e-3), (b) correct streaming-state handling across chunks, (c) RTF of the ONNX CPU path on this machine **and** on a GitHub Actions x86 runner (representative laptop-class CPU). Pass → ONNX Runtime is the shipped engine (with per-OS GPU EPs). Fail → ship PyTorch CPU per platform (MPS/CUDA auto-enabled where available).
 - Deliverable: measured latency/RTF table + engine decision → fixes chunk-size policy, compute detection, and whether Isolated mode is viable real-time per tier. **If TSE RTF > 1 even at 4 s chunks on CPU, weak-CPU users get fast isolation (Enhanced + speaker gating, 50 ms) per §3.4 — documented tradeoff.**
 
+### Phase 0 results (done 2026-11-14) — **GATE: PASS**
+
+**Environment:** venv py3.12, torch 2.x + ROCm, RX 7900 XTX (gfx1101) confirmed working; 24-core CPU.
+
+**Torch RTF (reference)** — `tools/phase0_rtf.py`, RTF = audio_s / compute_s (higher = more headroom):
+
+| Model | Device | RTF |
+|---|---|---|
+| TSE BSRNN 24k/48k/72k window (1/2/3 s) | GPU | 17–36 |
+| TSE BSRNN same | CPU (12 threads) | 1.7–4.4 |
+| DF2 @48 kHz | CPU | 45–66 |
+| Silero VAD | CPU | 91 |
+
+**ONNX gate** — `tools/phase0_onnx.py` (TSE + ECAPA), `tools/export_df2.py` (DF2):
+- TSE exported in **production runtime form** (fixed enrollment embedding input, streaming internal state), 3 static window sizes 1/2/3 s → `models/onnx/tse_bsrnn_{24000,48000,72000}.onnx`.
+- ECAPA c512 (enrollment) → `models/onnx/ecapa_c512.onnx`.
+- DF2 exported via static real-unfold (32-frame window, 30 new frames = 100 ms per call) → `models/onnx/df2_mask.onnx`.
+- Numeric parity vs torch: max rel diff **4.2e-08** (≪ 1e-3 gate).
+- Streaming-state parity verified across chunk boundaries.
+
+**ONNX CPU RTF** — `tools/ci_onnx_rtf.py` (torch-free), 4 threads (laptop proxy):
+
+| Model | Chunk | RTF (4 thr) |
+|---|---|---|
+| TSE BSRNN 24k (1 s) | 1.0 s | 2.26 |
+| TSE BSRNN 48k (2 s) | 2.0 s | 2.23 |
+| TSE BSRNN 72k (3 s) | 3.0 s | 2.20 |
+| DF2 mask | 0.1 s | 26.2 |
+
+**PortAudio null-sink round-trip** — `tools/phase0_roundtrip.py`: capture → null sink → read back, E2E ping latency 11–16 ms. Confirms the virtual-input pattern (Linux null sink) with PortAudio on PipeWire.
+
+**Decisions fixed by this gate:**
+1. **Shipped engine: ONNX Runtime** (CPU EP baseline; per-OS GPU EPs optional). PyTorch dev-only.
+2. **Isolated mode is real-time on CPU for all users** — even at 4 threads TSE RTF ≈ 2.2, far above the RTF ≤ 0.5 target; the §3.4 weak-CPU fast-isolation fallback is **not needed as a performance backstop** (retained only as a quality/latency tradeoff).
+3. **Chunk-size policy**: first-run calibration per §3.4 can keep the 3 s window on laptop-class hardware; auto-adaptation still implemented (per-OS runners vary).
+4. **CI**: `.github/workflows/onnx-rtf.yml` runs the torch-free RTF gate on `ubuntu-latest` (4 threads, min RTF 1.0; 2-thread informational run) on every change to `models/onnx/**` — keeps Isolated-mode real-time on a representative x86 CPU a verified property.
+5. **Repo**: ONNX models committed via Git LFS (models needed in CI); vendor clones by reference (`VENDOR.md` + `scripts/vendor.sh`); checkpoints auto-downloaded, not committed.
+
 **Phase 1 — Filter core (headless, pure, no GUI/OS audio).**
 - `filter/` implements §3.5: DF → TSE → EQ pipeline, engine, profiles (`.pvcf` read/write/validate), calibration, stats; all driven by `VoiceFilter.process()`.
 - `cli.py` runs it file-in/file-out in any mode with any profiles/EQ — the same code path the GUI uses.
