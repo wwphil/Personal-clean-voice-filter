@@ -1,0 +1,4 @@
+# ONNX models are the CI gate input (tools/ci_onnx_rtf.py runs on the GH
+# runner from these files) — keep them in the repo via LFS.
+models/onnx/*.onnx filter=lfs diff=lfs merge=lfs -text
+models/onnx/*.onnx.data filter=lfs diff=lfs merge=lfs -text

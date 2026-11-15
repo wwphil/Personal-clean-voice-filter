@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# vendored clones — re-created by scripts/vendor.sh at the pinned commits
+# (see VENDOR.md); they carry their own .git histories and build artifacts
+vendor/
+
+# downloaded model checkpoints (auto-fetched by vendor code on first use)
+models/wesep/
+models/DeepFilterNet2/
+models/DeepFilterNet/
+
+# local caches / scratch
+.cache/
+*.tmp

@@ -1,0 +1,39 @@
+[project]
+name = "pvcf"
+version = "0.1.0"
+description = "Personal Clean Voice Filter: speaker-conditional real-time voice filter exposing a virtual microphone input"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "sounddevice>=0.4.7",
+  "PySide6>=6.6",
+  "onnxruntime>=1.17",
+  "loguru>=0.7",
+  "soundfile>=0.12",
+  "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+# torch is installed from the PyTorch index at setup time (see docs/devlog/phase-0.md);
+# listed here for completeness / CPU fallback environments.
+torch = ["torch>=2.6", "torchaudio>=2.6"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+pvcf = "pvcf.main:main"
+pvcf-cli = "pvcf.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pvcf*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

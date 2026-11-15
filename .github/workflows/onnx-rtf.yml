@@ -1,0 +1,34 @@
+name: onnx-rtf-cpu
+
+# Phase 0 ONNX gate, part 2: measure ONNX Runtime CPU RTF of the TSE
+# models on a GitHub-hosted x86 runner (representative desktop/laptop
+# CPU). Keeps Isolated mode real-time on weak hardware a verified
+# property, not an assumption. Torch-free: onnxruntime + numpy only.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "models/onnx/**"
+      - "tools/ci_onnx_rtf.py"
+      - ".github/workflows/onnx-rtf.yml"
+  workflow_dispatch:
+
+jobs:
+  rtf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install --no-cache-dir "onnxruntime==1.32.*" numpy
+
+      - name: RTF gate (4 threads, min RTF 1.0)
+        run: python tools/ci_onnx_rtf.py --dir models/onnx --threads 4 --min-rtf 1.0
+
+      - name: RTF report (2 threads, information only)
+        run: python tools/ci_onnx_rtf.py --dir models/onnx --threads 2 --min-rtf 0.0 || true
